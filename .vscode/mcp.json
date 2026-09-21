@@ -1,0 +1,17 @@
+{
+  "servers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "@playwright/mcp@0.0.80",
+        "--headless",
+        "--isolated",
+        "--block-service-workers",
+        "--allowed-origins",
+        "http://127.0.0.1:3000;http://localhost:3000;http://127.0.0.1:3100;http://localhost:3100"
+      ]
+    }
+  }
+}

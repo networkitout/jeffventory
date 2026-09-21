@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { apiErrorResponse, readJsonBody } from "@/lib/api-errors";
+import { parseNamedEntity } from "@/lib/item-validation";
+import { inventoryTransaction } from "@/lib/inventory-transactions";
 
 export async function GET() {
-  const categories = await prisma.category.findMany({ orderBy: { name: "asc" } });
-  return NextResponse.json(categories);
+  try {
+    return NextResponse.json(await prisma.category.findMany({ orderBy: { name: "asc" } }));
+  } catch (error) {
+    return apiErrorResponse(error, "GET /api/categories");
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const name = body.name?.trim();
-  if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
-  const category = await prisma.category.upsert({ where: { name }, update: {}, create: { name } });
-  return NextResponse.json(category, { status: 201 });
+  try {
+    const name = parseNamedEntity(await readJsonBody(req));
+    const category = await inventoryTransaction((tx) =>
+      tx.category.upsert({ where: { name }, update: {}, create: { name } }),
+    );
+    return NextResponse.json(category, { status: 201 });
+  } catch (error) {
+    return apiErrorResponse(error, "POST /api/categories");
+  }
 }

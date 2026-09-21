@@ -4,21 +4,20 @@ import { pickBarcodeType } from "@/lib/sku";
 
 const ALLOWED = new Set(["qrcode", "upca", "ean13", "ean8", "code128", "datamatrix"]);
 
-/**
- * Render a barcode/QR PNG server-side.
- * GET /api/barcode?text=JV-ABC123&type=qrcode&scale=3
- * `type=auto` (default) picks a retail symbology for numeric codes, else code128.
- */
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const text = sp.get("text")?.trim();
   if (!text) return new Response("text is required", { status: 400 });
+  if (text.length > 512) return new Response("text must be 512 characters or fewer", { status: 400 });
 
   let type = sp.get("type") ?? "auto";
   if (type === "auto") type = pickBarcodeType(text);
   if (!ALLOWED.has(type)) return new Response("unsupported type", { status: 400 });
 
-  const scale = Math.min(Math.max(Number(sp.get("scale") ?? 3), 1), 8);
+  const scale = Number(sp.get("scale") ?? 3);
+  if (!Number.isInteger(scale) || scale < 1 || scale > 8) {
+    return new Response("scale must be a whole number from 1 to 8", { status: 400 });
+  }
   const is2d = type === "qrcode" || type === "datamatrix";
 
   try {
@@ -26,12 +25,16 @@ export async function GET(req: NextRequest) {
       bcid: type,
       text,
       scale,
+      backgroundcolor: "FFFFFF",
+      paddingwidth: is2d ? 4 : 10,
+      paddingheight: 4,
       ...(is2d ? {} : { height: 12, includetext: true, textxalign: "center" }),
     });
     return new Response(new Uint8Array(png), {
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": "private, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (e) {

@@ -7,31 +7,69 @@ datasource db {
   provider = "sqlite"
 }
 
-// SQLite does not support Prisma enums. Allowed values live in src/lib/constants.ts:
+// These fields intentionally remain strings. Validate with src/lib/constants.ts:
 //   status:    IN_STOCK | LISTED | SOLD | ARCHIVED
 //   condition: NEW | LIKE_NEW | USED | FOR_PARTS
 model Item {
-  id            String    @id @default(cuid())
-  sku           String    @unique // internal code, encoded in printed QR labels (e.g. JV-8F3KQ2)
-  name          String
-  description   String?
-  quantity      Int       @default(1)
-  upc           String?   // scanned UPC/EAN from the product packaging
-  condition     String    @default("USED")
-  status        String    @default("IN_STOCK")
-  purchasePrice Float?
-  listPrice     Float?
-  ebayUrl       String?
-  notes         String?
-  categoryId    String?
-  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  locationId    String?
-  location      Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String         @id @default(cuid())
+  sku               String         @unique // internal code, encoded in printed QR labels (e.g. JV-8F3KQ2)
+  name              String
+  description       String?
+  quantity          Int            @default(1)
+  upc               String? // external barcode or arbitrary QR text; never a number
+  brand             String?
+  modelNumber       String?
+  partNumber        String?
+  serialNumber      String?
+  tags              String? // comma-separated text
+  lowStockThreshold Int?
+  condition         String         @default("USED")
+  status            String         @default("IN_STOCK")
+  purchasePrice     Float?
+  listPrice         Float?
+  salePrice         Float?
+  fees              Float?
+  shippingCost      Float?
+  ebayUrl           String?
+  notes             String?
+  categoryId        String?
+  category          Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  locationId        String?
+  location          Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  photos            ItemPhoto[]
+  activities        ItemActivity[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   @@index([upc])
   @@index([status])
+  @@index([categoryId])
+  @@index([locationId])
+  @@index([updatedAt])
+}
+
+model ItemPhoto {
+  id           String   @id @default(cuid())
+  itemId       String
+  item         Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  filename     String   @unique
+  originalName String
+  width        Int
+  height       Int
+  createdAt    DateTime @default(now())
+
+  @@index([itemId, createdAt, id])
+}
+
+model ItemActivity {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type      String
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([itemId, createdAt, id])
 }
 
 model Category {

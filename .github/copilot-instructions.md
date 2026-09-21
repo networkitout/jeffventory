@@ -1,16 +1,22 @@
 # Jeffventory — Copilot instructions
 
-Home inventory app for eBay sellers and tinkerers: track items, scan UPC/QR codes with the camera, generate and print QR labels. Single-user, no auth, local SQLite.
+Home inventory app for eBay sellers and tinkerers: photos, component details, stock history, UPC/QR scanning, seller drafts, and printable labels. Single-user, local SQLite and photo files. Dev/start scripts bind to loopback because the app has no login.
 
 ## Commands
 
-- `npm run dev` — dev server (Turbopack, port 3000)
-- `npm run build` — production build; also runs the TypeScript check (use this to typecheck)
+- Fresh checkout: `npm ci`, copy `.env.example` to `.env`, then `npm run db:setup`. Optional `npm run db:seed` adds examples without replacing existing records.
+- `npm run dev` — dev server (Turbopack, 127.0.0.1:3000)
+- `npm run build` — regenerate Prisma client, production build, and TypeScript check
+- `npm start` — serve the production build on loopback
 - `npm run lint` — ESLint (flat config, `next/core-web-vitals` + strict React hooks rules)
-- `npx prisma migrate dev --name <name>` — create/apply migrations and regenerate the client
+- `npm run db:setup` — generate client and apply committed migrations; does not reset data
+- `npm run db:migrate -- --name <name>` — create/apply a development migration; run `npx prisma generate` afterward
 - `npx prisma generate` — regenerate client into `src/generated/prisma/` (gitignored; required after fresh clone before build)
-- `npx prisma db seed` — runs `prisma/seed.ts` via tsx (configured in `prisma.config.ts`)
-- There is no test framework set up yet.
+- `npm run db:seed` — runs `prisma/seed.ts` via tsx (configured in `prisma.config.ts`)
+- `npm run test:unit` — Node's test runner through tsx; one test: `npx tsx --test --test-name-pattern="retail codes" tests/codes.test.ts`
+- `npm run test:e2e` — build + Playwright. Install the browser once with `npx playwright install chromium`. One scenario: `npm run test:e2e -- --project=desktop -g "retrying a failed photo upload"`.
+- `npx playwright test` — rerun against an unchanged existing production build. `playwright.config.ts` starts `scripts/e2e-server.ts` on 3100 (override with `PLAYWRIGHT_PORT`), using a fresh temporary database/upload directory. Keep tests off `prisma/dev.db`.
+- `.mcp.json` (Copilot CLI) and `.vscode/mcp.json` configure the same pinned Playwright MCP process. Clients must trust the workspace/server; explicit CLI loading is `copilot --additional-mcp-config @.mcp.json`. `.github/github-app.yml` supplies manual setup/run/test buttons.
 
 ## Versions that matter (newer than most training data)
 
@@ -22,20 +28,28 @@ Home inventory app for eBay sellers and tinkerers: track items, scan UPC/QR code
 ## Architecture
 
 - **Data flow**: server components query Prisma directly (list/detail pages); client components mutate through JSON API route handlers under `src/app/api/`. No server actions.
-- **Schema** (`prisma/schema.prisma`): `Item` ↔ optional `Category`/`Location` (SetNull on delete). SQLite forbids Prisma enums, so `Item.status` / `Item.condition` are strings validated against the `STATUSES` / `CONDITIONS` constants in `src/lib/constants.ts` — keep schema comments, constants, and UI selects in sync when adding values.
+- **Schema** (`prisma/schema.prisma`): `Item` has optional `Category`/`Location` (SetNull on delete), `ItemPhoto` metadata, and `ItemActivity` history. Status and condition are stored as strings; validate with `STATUSES` / `CONDITIONS` in `src/lib/constants.ts`, and keep API validation, filters, badges, and selects in sync.
 - **Two code namespaces per item**:
   - `sku` (unique, e.g. `JV-8F3KQ2`) — internal ID encoded in printed QR labels; auto-generated in `src/lib/sku.ts` with a no-lookalike alphabet when the client omits it.
-  - `upc` (non-unique) — the product's retail barcode; multiple items may share one.
-- **Scan flow**: `Scanner.tsx` (@zxing/browser camera decode) → `GET /api/lookup?code=` which resolves SKU first, then UPC (returns `{match: "sku"|"upc"|null}`) → scan page routes to the item, a filtered list, or `/items/new?upc=` prefill.
-- **Barcode rendering** is server-side only: `GET /api/barcode?text=&type=` returns PNG via bwip-js; `type=auto` picks upca/ean13/ean8/code128 by digit length (`pickBarcodeType` in `src/lib/sku.ts`). Pages embed plain `<img>` tags pointing at it (not `next/image`).
-- **Labels**: `/labels?ids=a,b,c` renders fixed-size 2.6in×1.3in white cards (inline `style` for print accuracy) with QR of the SKU; printing is browser-native (`PrintButton` → `window.print()`, `print:hidden` utilities hide chrome).
+  - `upc` (non-unique) — a retail barcode or existing external QR text; multiple items may share one. Never parse codes as numbers.
+- **Inventory queries**: server page and JSON/export routes share `buildItemWhere` / `buildItemOrderBy` in `src/lib/inventory-query.ts`. The UI paginates 48 records; selection/bulk actions apply to the current page. Whole-inventory totals are independent of filters.
+- **Scan flow**: camera, image, manual, or USB input → `GET /api/lookup?code=` → SKU first, then product-code candidates (`src/lib/codes.ts` normalizes valid UPC/EAN leading-zero equivalents). A single match opens the item, multiple matches are selectable, no match pre-fills `/items/new?upc=`. Lookup failures must never appear as "not found." Camera streams stop on unmount and after decode.
+- **Product suggestions**: `GET /api/products/lookup?code=` contacts UPCitemdb only after an explicit user click. Validate external JSON. The form previews suggestions and fills only blank fields; never automatically send inventory/photos, import remote images, or overwrite user edits.
+- **Photos**: multipart `files` at `/api/items/[id]/photos`, max 8 per item / 10 MB each. Sharp verifies/re-encodes JPEG/PNG/WebP to WebP, removes metadata, and fits within 1600px. `/api/photos/[id]` resolves database identifiers to generated local filenames. `UPLOAD_DIR` defaults to `data/uploads`; never trust original names as filesystem paths. First photo by createdAt/id is the cover.
+- **Stock and history**: `/api/items/[id]/quantity` applies an atomic signed delta and records activity; stock must not go negative under concurrent requests. Bulk status/location updates at `/api/items/bulk` are all-or-nothing. Editing an item also records history.
+- **Barcode rendering**: `GET /api/barcode?text=&type=` returns PNG via `bwip-js/node`. `pickBarcodeType` uses retail symbologies only when the GTIN checksum is valid; invalid numeric strings must retain their exact contents via Code 128, not have a check digit silently replaced. Long/non-ASCII codes use QR. Plain `<img>` tags intentionally avoid Next image optimization.
+- **Labels**: `/labels?ids=a,b,c` supports template, code source/style, copies, and price controls. Physical dimensions are inches; QR quiet zones and print CSS matter. `PrintButton` waits for all images to decode before calling `window.print()`. Limit batches to 200.
+- **Selling**: amounts are USD per unit. Status describes the entire record; marking SOLD does not decrement stock. `src/lib/selling.ts` calculates in cents and builds an 80-character title/plain-text draft without private notes, serial numbers, or storage locations. Calculator changes are explicitly ephemeral; eBay links do not publish listings.
+- **Exports**: `/api/export?format=csv|json` uses the same filters or explicit IDs. CSV must neutralize formula cells; JSON is versioned metadata, not a photo-inclusive backup. Full backups require the stopped database (including any remaining sidecars) and upload directory together.
 
 ## Conventions
 
 - Import bwip-js as `import bwipjs from "bwip-js/node"` — the bare `"bwip-js"` specifier fails TypeScript resolution (its root export map has no condition TS matches under `moduleResolution: bundler`).
 - SQLite + Prisma: no `mode: "insensitive"` on string filters (unsupported); plain `contains` is already case-insensitive for ASCII.
-- API routes accept `categoryName`/`locationName` strings and `connectOrCreate` them — categories/locations are created implicitly, never picked by ID from clients. Forms offer them via `<datalist>`.
-- Item create/update: empty-string numeric fields are coerced to `null`; blank SKU means "generate one"; Prisma error `P2002` → 409 (duplicate SKU), `P2025` → 404.
-- Forms are uncontrolled (`defaultValue` + `FormData`), submitted as JSON via fetch, then `router.push` + `router.refresh()`.
-- Dark theme is hard-coded (zinc palette); label cards force white/black for printing.
-- DB file is `prisma/dev.db` (gitignored along with `.env`); `DATABASE_URL` paths resolve from the project root.
+- Item mutations accept `categoryName`/`locationName` strings with `connectOrCreate`; filters use IDs. Forms offer names via `<datalist>`. Clearing a relationship on edit disconnects it.
+- Parse JSON input as unknown before validation. Quantities/thresholds are whole nonnegative numbers; prices must be finite and nonnegative. Optional empty numeric fields become null. Create with blank SKU generates one; duplicate SKU is 409 and missing records are 404.
+- Codes are trimmed at the boundaries and capped at 512 characters across storage, scanning, and image generation. Preserve their leading zeros and internal text.
+- Origin checks use the actual `Host` header: NextURL normalizes loopback addresses to `localhost`, so comparing browser Origin directly against `request.url` rejects legitimate requests to `127.0.0.1`.
+- Forms are uncontrolled (`defaultValue` + `FormData`) and use `fetchJson` / `jsonRequest` from `src/lib/client-api.ts`. Navigate with `router.push` + `router.refresh()` after successful mutation. An item saved before a photo failure retains its ID/SKU so retrying cannot create a duplicate.
+- UI tokens and shared control/layout classes live in `src/app/globals.css`; `Icon.tsx` supplies consistent line icons. The established dark green/charcoal workbench becomes a stacked layout with photo rows on phones. Keep visible labels, keyboard focus, error/retry states, and white print styles when adding controls.
+- DB and photo paths resolve from the project root; both can be overridden for tests. `.env.example` is tracked; actual databases, uploads, `.env`, `.test-data`, test reports, and `.playwright-mcp/` snapshots/logs are ignored.

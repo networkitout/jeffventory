@@ -1,96 +1,73 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 
-type Props = {
-  onDecode: (text: string) => void;
-  paused?: boolean;
-};
-
-export default function Scanner({ onDecode, paused = false }: Props) {
+export default function Scanner({ onDecode, paused = false }: { onDecode: (text: string) => void; paused?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const controlsRef = useRef<IScannerControls | null>(null);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
-  // Keep the latest callback in refs so the camera doesn't restart on each render.
   const onDecodeRef = useRef(onDecode);
   const pausedRef = useRef(paused);
-  useEffect(() => {
-    onDecodeRef.current = onDecode;
-    pausedRef.current = paused;
-  });
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState("");
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
-  const stop = useCallback(() => {
-    controlsRef.current?.stop();
-    controlsRef.current = null;
-  }, []);
+  useEffect(() => { onDecodeRef.current = onDecode; pausedRef.current = paused; }, [onDecode, paused]);
 
   useEffect(() => {
     let cancelled = false;
-    const reader = new BrowserMultiFormatReader();
+    let controls: IScannerControls | undefined;
+    const reader = new BrowserMultiFormatReader(undefined, {
+      delayBetweenScanAttempts: 180,
+      delayBetweenScanSuccess: 900,
+    });
+    const video = videoRef.current;
 
     async function start() {
-      setError(null);
+      setError("");
       try {
-        const controls = await reader.decodeFromVideoDevice(deviceId, videoRef.current!, (result) => {
-          if (result && !pausedRef.current) {
-            onDecodeRef.current(result.getText());
-          }
-        });
-        if (cancelled) {
-          controls.stop();
-          return;
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Camera scanning needs HTTPS or localhost. You can enter a code or scan a photo instead.");
         }
-        controlsRef.current = controls;
-
+        if (!video) throw new Error("The camera preview is unavailable. Try again.");
+        const nextControls = await reader.decodeFromConstraints({
+          audio: false,
+          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: "environment" } },
+        }, video, (result) => {
+          if (!cancelled && result && !pausedRef.current) onDecodeRef.current(result.getText());
+        });
+        if (cancelled) { nextControls.stop(); return; }
+        controls = nextControls;
         const found = await BrowserMultiFormatReader.listVideoInputDevices();
         if (!cancelled) setDevices(found);
-      } catch (e) {
-        if (!cancelled) {
-          setError(
-            e instanceof Error && e.name === "NotAllowedError"
-              ? "Camera access denied. Allow camera permissions and reload."
-              : `Could not start camera: ${e instanceof Error ? e.message : "unknown error"}`
-          );
-        }
+      } catch (error) {
+        controls?.stop();
+        if (cancelled) return;
+        const name = error instanceof Error ? error.name : "";
+        setError(name === "NotAllowedError" ? "Camera permission was denied. Allow camera access in your browser and try again, or enter a code below."
+          : name === "NotFoundError" ? "No camera was found. Connect a camera, enter a code, or scan a photo."
+          : name === "NotReadableError" ? "Another app may be using the camera. Close it and try again."
+          : error instanceof Error ? `Could not start the camera: ${error.message}. Enter a code or scan a photo instead.`
+          : "The camera could not start. Try again or enter the code manually.");
       }
     }
-
-    start();
-    return () => {
-      cancelled = true;
-      stop();
-    };
-  }, [deviceId, stop]);
+    void start();
+    return () => { cancelled = true; controls?.stop(); };
+  }, [deviceId, attempt]);
 
   return (
-    <div className="space-y-3">
-      {error ? (
-        <p className="rounded-md border border-red-800 bg-red-950 px-3 py-2 text-sm text-red-300">{error}</p>
-      ) : (
-        <video
-          ref={videoRef}
-          className="aspect-video w-full rounded-lg border border-zinc-700 bg-black object-cover"
-          muted
-          playsInline
-        />
-      )}
-      {devices.length > 1 && (
-        <select
-          value={deviceId ?? ""}
-          onChange={(e) => setDeviceId(e.target.value || undefined)}
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm"
-        >
-          <option value="">Default camera</option>
-          {devices.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
-            </option>
-          ))}
+    <div>
+      <video ref={videoRef} className="scanner-video" muted playsInline aria-label="Camera barcode preview" />
+      {error && <div className="notice notice-error mt-3" role="alert">
+        <p>{error}</p><button type="button" className="button button-small mt-3" onClick={() => setAttempt((value) => value + 1)}>Retry camera</button>
+      </div>}
+      {devices.length > 1 && <div className="scanner-controls">
+        <label className="field-label mb-0!" htmlFor="camera-device">Camera</label>
+        <select id="camera-device" className="input" value={deviceId} onChange={(event) => setDeviceId(event.target.value)}>
+          <option value="">Rear / default camera</option>
+          {devices.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || `Camera ${index + 1}`}</option>)}
         </select>
-      )}
+      </div>}
     </div>
   );
 }
