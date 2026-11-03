@@ -9,6 +9,13 @@ async function createItem(request: APIRequestContext, values: Record<string, unk
   return response.json();
 }
 
+test("health endpoint reports a migrated database without exposing inventory", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  expect(await response.json()).toEqual({ status: "ok" });
+});
+
 test("API validates inventory inputs and preserves manufacturer codes", async ({ request }) => {
   for (const invalid of [
     null, [], { name: "   " }, { name: 7 }, { name: "Invalid", quantity: -1 },

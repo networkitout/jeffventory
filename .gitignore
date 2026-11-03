@@ -54,3 +54,5 @@ prisma/*.db-wal
 /test-results/
 /playwright-report/
 /.playwright-mcp/
+/backups/
+/certs/

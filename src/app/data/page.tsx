@@ -19,6 +19,7 @@ export default function DataPage() {
         <h2>Back up the complete workspace</h2>
         <p>Stop Jeffventory first so the database and photos are consistent. Copy <code>prisma/dev.db</code> and the whole <code>data/uploads/</code> directory together to a safe location.</p>
         <p>If SQLite <code>-wal</code> or <code>-shm</code> sidecar files remain, include them with the database. If you changed <code>DATABASE_URL</code> or <code>UPLOAD_DIR</code>, use those locations instead. Restore the database, sidecars, and photos together while the app is stopped.</p>
+        <p>With Docker Compose, the database and photos live together in the inventory volume under <code>/data</code>. Follow <code>docs/DEPLOYMENT.md</code> for a stopped-volume backup and restore. Do not remove the volume when updating.</p>
       </section>
       <section className="data-section">
         <h2>What leaves this computer?</h2>
@@ -27,7 +28,8 @@ export default function DataPage() {
       </section>
       <section className="data-section">
         <h2>Using a phone or another computer</h2>
-        <p>The server binds to this computer&apos;s loopback address by default. Camera scanning works on localhost or a trusted HTTPS connection. Access from another device needs a private, authenticated HTTPS setup; this app has no login and should not be exposed to the public internet.</p>
+        <p>The server binds to this computer&apos;s loopback address by default. For trusted home-network devices, the Docker setup supports private HTTPS with a locally trusted certificate. Live camera scanning needs that secure connection.</p>
+        <p>This is one shared inventory with no login. Anyone who can reach it can view, edit, export, or delete its contents. Keep it off public and guest networks; HTTPS protects the connection but does not add user accounts.</p>
       </section>
     </div>
   );

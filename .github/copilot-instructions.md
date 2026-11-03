@@ -17,6 +17,8 @@ Home inventory app for eBay sellers and tinkerers: photos, component details, st
 - `npm run test:e2e` — build + Playwright. Install the browser once with `npx playwright install chromium`. One scenario: `npm run test:e2e -- --project=desktop -g "retrying a failed photo upload"`.
 - `npx playwright test` — rerun against an unchanged existing production build. `playwright.config.ts` starts `scripts/e2e-server.ts` on 3100 (override with `PLAYWRIGHT_PORT`), using a fresh temporary database/upload directory. Keep tests off `prisma/dev.db`.
 - `.mcp.json` (Copilot CLI) and `.vscode/mcp.json` configure the same pinned Playwright MCP process. Clients must trust the workspace/server; explicit CLI loading is `copilot --additional-mcp-config @.mcp.json`. `.github/github-app.yml` supplies manual setup/run/test buttons.
+- `docker compose up -d --build` — local production deployment. For LAN/HTTPS, use `.env.docker` and `compose.https.yaml` as described in `docs/DEPLOYMENT.md`; defaults publish only to loopback.
+- `npm run test:docker` — Docker/Compose and Playwright Chromium required. Builds isolated deployments on random ports, verifies persistence, backup/restore, and local-CA HTTPS, then deletes only its own test volumes. `-- --no-build` reuses `jeffventory:local` (or `JEFFVENTORY_TEST_IMAGE`).
 
 ## Versions that matter (newer than most training data)
 
@@ -41,6 +43,7 @@ Home inventory app for eBay sellers and tinkerers: photos, component details, st
 - **Labels**: `/labels?ids=a,b,c` supports template, code source/style, copies, and price controls. Physical dimensions are inches; QR quiet zones and print CSS matter. `PrintButton` waits for all images to decode before calling `window.print()`. Limit batches to 200.
 - **Selling**: amounts are USD per unit. Status describes the entire record; marking SOLD does not decrement stock. `src/lib/selling.ts` calculates in cents and builds an 80-character title/plain-text draft without private notes, serial numbers, or storage locations. Calculator changes are explicitly ephemeral; eBay links do not publish listings.
 - **Exports**: `/api/export?format=csv|json` uses the same filters or explicit IDs. CSV must neutralize formula cells; JSON is versioned metadata, not a photo-inclusive backup. Full backups require the stopped database (including any remaining sidecars) and upload directory together.
+- **Private deployment**: Docker sets `JEFFVENTORY_STANDALONE=1` only during the build; normal `npm start` stays unchanged. The non-root runtime applies `prisma migrate deploy` before starting and stores SQLite/photos together under `/data`. Prisma CLI and dotenv are runtime dependencies for migrations. `/api/health` checks the migrated database without returning inventory. The optional Caddy overlay uses a persistent local CA and removes the app's direct HTTP port; no public certificate service is involved.
 
 ## Conventions
 
@@ -50,6 +53,7 @@ Home inventory app for eBay sellers and tinkerers: photos, component details, st
 - Parse JSON input as unknown before validation. Quantities/thresholds are whole nonnegative numbers; prices must be finite and nonnegative. Optional empty numeric fields become null. Create with blank SKU generates one; duplicate SKU is 409 and missing records are 404.
 - Codes are trimmed at the boundaries and capped at 512 characters across storage, scanning, and image generation. Preserve their leading zeros and internal text.
 - Origin checks use the actual `Host` header: NextURL normalizes loopback addresses to `localhost`, so comparing browser Origin directly against `request.url` rejects legitimate requests to `127.0.0.1`.
+- LAN deployment is one shared inventory, not multi-user authorization. Anyone with network access can edit/delete/export it. Never publish ports on all interfaces by default or add public tunnels. Phone-camera HTTPS requires each client to trust the private CA; HTTPS alone does not provide a login.
 - Forms are uncontrolled (`defaultValue` + `FormData`) and use `fetchJson` / `jsonRequest` from `src/lib/client-api.ts`. Navigate with `router.push` + `router.refresh()` after successful mutation. An item saved before a photo failure retains its ID/SKU so retrying cannot create a duplicate.
 - UI tokens and shared control/layout classes live in `src/app/globals.css`; `Icon.tsx` supplies consistent line icons. The established dark green/charcoal workbench becomes a stacked layout with photo rows on phones. Keep visible labels, keyboard focus, error/retry states, and white print styles when adding controls.
 - DB and photo paths resolve from the project root; both can be overridden for tests. `.env.example` is tracked; actual databases, uploads, `.env`, `.test-data`, test reports, and `.playwright-mcp/` snapshots/logs are ignored.
