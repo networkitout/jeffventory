@@ -18,6 +18,20 @@ Open http://127.0.0.1:3000. The server binds to loopback by default. This is a s
 
 `db:setup` generates the Prisma client and applies committed migrations without clearing existing inventory. For a production-mode local server, run `npm run build` followed by `npm start`.
 
+## Give Jeff a private Docker deployment
+
+Docker Compose runs the production app without installing Node.js or a database on the host:
+
+```bash
+docker compose up -d --build
+```
+
+The default is http://127.0.0.1:3000, accessible only on that computer. SQLite and photos live together in a persistent Docker volume; migrations run automatically, and the container runs as a non-root user. Fresh installations start empty, not with someone else's inventory.
+
+For Jeff's trusted home network, copy `docker/compose.env.example` to `.env.docker` and set the server's private LAN IP. The optional `compose.https.yaml` adds private HTTPS for phone-camera scanning without a public domain or cloud account. **Follow [Jeff's LAN setup guide](docs/DEPLOYMENT.md)** for the full commands, certificate trust, updates, and backup/restore.
+
+This remains one shared inventory with no login: anyone who can reach the app can view, edit, export, or delete its contents. Keep it off public and guest networks. HTTPS encrypts traffic; it does not add user authentication.
+
 ## Inventory workflows
 
 - **Find things:** search names, SKUs, product codes, manufacturers, model/part/serial numbers, tags, descriptions, and notes. Combine category/location filters with stock, listed, sold, archived, or low-stock views. Results are paginated; desktop has list and photo-grid layouts.
@@ -35,7 +49,7 @@ Inventory SKUs are unique and resolve first. Product codes are not unique; items
 
 **Look up product** in the item form is optional. Clicking it sends only the entered retail barcode to UPCitemdb's public trial API. Suggestions are previewed and **Fill empty fields** preserves anything you have already entered. Nothing is stored until the item is saved. The catalog may be incomplete or incorrect, and the trial service has rate limits; no match and service failures are shown separately. No API key is needed for the trial endpoint.
 
-Phone cameras require trusted HTTPS, not an HTTP LAN address. Using another device requires a private, authenticated HTTPS setup around this local app. Manual entry and USB scanning remain available without camera access.
+Phone cameras require trusted HTTPS, not an HTTP LAN address. The [private HTTPS deployment](docs/DEPLOYMENT.md#phone-camera-scanning-with-private-https) supports trusted devices on a home network; restrict network access because there is no app login. Manual entry and USB scanning remain available without camera access.
 
 ## Selling and labels
 
@@ -77,6 +91,8 @@ For a complete backup, stop the app and copy the database and the upload directo
 | `npm run test:unit` | Node test runner through tsx |
 | `npm run test:e2e` | Build and run Playwright desktop/mobile workflows |
 | `npm test` | Unit and browser suites |
+| `docker compose up -d --build` | Build/start a persistent local production deployment |
+| `npm run test:docker` | Build and exercise isolated HTTP/HTTPS containers, persistence, and backup/restore |
 
 Install the test browser once:
 
@@ -97,6 +113,8 @@ npm run test:e2e -- --project=desktop -g "retrying a failed photo upload"
 ```
 
 After an unchanged production build, skip rebuilding with `npx playwright test`. The browser suite starts a separate loopback server on port 3100 with a fresh database and photo directory under `.test-data/`, then removes that run's data. It does not use your inventory database. Set `PLAYWRIGHT_PORT` to an unused port if needed. Failures keep screenshots/traces in `test-results/`; `npx playwright show-trace <trace.zip>` opens a trace.
+
+Docker smoke tests require a running Docker engine, Compose 2.24+ and the Playwright Chromium browser. They use random project names and ports, remove only their own volumes, and never use the normal deployment's data. After `docker compose build app`, `npm run test:docker -- --no-build` reuses `jeffventory:local`; `JEFFVENTORY_TEST_IMAGE` selects another existing image.
 
 ## Architecture
 
@@ -125,3 +143,4 @@ Approve workspace/server trust when your client prompts. In VS Code, open `.vsco
 The MCP browser is headless with an isolated, in-memory profile and service workers blocked. Its origin filter allows only `localhost` and `127.0.0.1` on ports 3000 and 3100. Adjust both config files if you deliberately use different ports. The filter is a browsing convenience, **not a security boundary**; it does not constrain redirects. No user-global MCP settings are changed.
 
 The Copilot app configuration provides manual setup/run/test actions and opens the local preview when the server is ready. Review and accept that configuration in the app before using the actions.
+# jeffventory
