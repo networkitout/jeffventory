@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GET } from "../src/app/api/products/lookup/route";
+import { productLookupResponse as GET } from "../src/lib/product-lookup-response";
 import {
   lookupProduct,
   ProductLookupError,
@@ -283,7 +283,7 @@ test("errors are not cached and a later explicit lookup can succeed", async () =
   assert.equal(calls, 2);
 });
 
-test("GET route exposes the specified JSON contract and no-store on every outcome", async (t) => {
+test("product lookup response exposes the specified JSON contract and no-store on every outcome", async (t) => {
   const scenarios: Array<{
     name: string;
     query: string;

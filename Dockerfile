@@ -34,9 +34,14 @@ COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 # Prisma's migration CLI is not part of Next's application dependency tracing.
 COPY --from=production-dependencies /app/node_modules ./node_modules
+COPY --from=production-dependencies /app/package.json ./package.json
 COPY --from=build /app/prisma/schema.prisma ./prisma/schema.prisma
 COPY --from=build /app/prisma/migrations ./prisma/migrations
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --from=build /app/src/generated ./src/generated
+COPY --from=build /app/src/lib ./src/lib
+COPY scripts/manage-users.ts ./scripts/manage-users.ts
 COPY docker/entrypoint.sh docker/healthcheck.mjs ./docker/
 RUN mkdir -p /data/uploads && chown -R node:node /data
 USER node

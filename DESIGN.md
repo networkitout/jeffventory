@@ -1,3 +1,5 @@
+> **Historical proposal — superseded.** This document describes an unimplemented Python/Postgres design, not the current application. Its implementation directives are obsolete. Use [README.md](README.md), [.github/copilot-instructions.md](.github/copilot-instructions.md), and [authentication documentation](docs/AUTHENTICATION.md) for the current Next.js/Prisma/SQLite system.
+
 # Inventory — Design
 
 Companion to ARCHITECTURE.md. This is the buildable spec: schema, API

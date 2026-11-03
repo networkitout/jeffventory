@@ -1,6 +1,7 @@
 import type { ReactNode, SVGProps } from "react";
 
 const shapes = {
+  settings: <><circle cx="9" cy="8" r="4" /><path d="M2 21v-3a7 7 0 0 1 14 0v3M17 6h5M19.5 3.5v5" /></>,
   box: <><path d="m12 3 9 5-9 5-9-5 9-5Z" /><path d="M3 8v9l9 5 9-5V8M12 13v9M7.5 5.5l9 5" /></>,
   scan: <><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5M4 12h16M8 7v10M12 7v10M16 7v10" /></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,

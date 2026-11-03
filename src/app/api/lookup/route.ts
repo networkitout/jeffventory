@@ -1,3 +1,4 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ApiError, apiErrorResponse } from "@/lib/api-errors";
@@ -10,7 +11,7 @@ import { itemRelations } from "@/lib/inventory-query";
  * Order: exact SKU match (our printed QR labels) -> UPC match (product barcodes).
  * UPC can match multiple items, so it returns a list.
  */
-export async function GET(req: NextRequest) {
+export const GET = withInventoryAuth(async function GET(req: NextRequest) {
   try {
     const code = req.nextUrl.searchParams.get("code")?.trim();
     if (!code) throw new ApiError(400, "code is required.");
@@ -34,4 +35,4 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return apiErrorResponse(error, "GET /api/lookup");
   }
-}
+});

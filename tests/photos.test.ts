@@ -28,6 +28,13 @@ test("image decoding rejects malformed, active, or oversized uploads", async () 
     (error) => error instanceof ApiError && error.status === 413);
 });
 
+test("SVG is blocked at the decoder even if upload format validation is bypassed", async () => {
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>');
+  await assert.rejects(sharp(svg).metadata(), /blocked|unsupported/i);
+  const webp = await sharp({ create: { width: 10, height: 10, channels: 3, background: "#fff" } }).webp().toBuffer();
+  assert.equal((await processPhoto(webp, "camera.webp")).width, 10);
+});
+
 test("stored filenames are generated identifiers, not original paths", async () => {
   const parent = resolve(".test-data");
   await mkdir(parent, { recursive: true });

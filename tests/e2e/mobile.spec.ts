@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test("mobile inventory and item forms fit the viewport and remain actionable", async ({ page, request }) => {
   const response = await request.post("/api/items", { data: { name: "Mobile workbench component", quantity: 5, partNumber: "MOBILE-PART", categoryName: "Components", locationName: "Drawer C" } });

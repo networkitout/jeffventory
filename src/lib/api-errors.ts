@@ -60,9 +60,11 @@ export function assertMutationRequest(
   // NextURL rewrites 127.0.0.1 and ::1 to localhost. Use the actual Host
   // header so the browser's origin is compared against the address it opened.
   const host = request.headers.get("host");
-  const requestOrigin = host ? new URL(`${url.protocol}//${host}`).origin : url.origin;
-  // This app has no authentication. Browser writes must come from its own origin;
-  // command-line/local clients that omit Origin remain supported.
+  const requestOrigin = process.env.BETTER_AUTH_URL
+    ? new URL(process.env.BETTER_AUTH_URL).origin
+    : host ? new URL(`${url.protocol}//${host}`).origin : url.origin;
+  // With HTTPS termination, use the configured browser origin, not backend HTTP.
+  // Authenticated command-line clients may omit Origin.
   if (origin !== null && origin !== requestOrigin) {
     throw new ApiError(403, "Cross-origin changes are not allowed.");
   }

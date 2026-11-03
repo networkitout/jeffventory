@@ -11,6 +11,10 @@ import {
   readBoundedBody,
 } from "@/lib/api-errors";
 
+// Reject unsupported decoders before metadata parsing. In particular, loading
+// SVG metadata must never enter librsvg (GHSA-wq5f-xc86-pv6w).
+sharp.block({ operation: ["VipsForeignLoadSvg"] });
+
 export const MAX_PHOTOS_PER_ITEM = 8;
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 export const MAX_UPLOAD_BYTES = MAX_PHOTOS_PER_ITEM * MAX_PHOTO_BYTES + 128 * 1024;
@@ -77,6 +81,10 @@ export async function readPhotoUploads(request: Request): Promise<File[]> {
 export async function processPhoto(data: Buffer, originalName: string): Promise<ProcessedPhoto> {
   if (data.length === 0) throw new ApiError(400, "Empty image files are not supported.");
   if (data.length > MAX_PHOTO_BYTES) throw new ApiError(413, "Each photo must be 10 MB or smaller.");
+  const jpeg = data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+  const png = data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  const webp = data.length >= 12 && data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WEBP";
+  if (!jpeg && !png && !webp) throw new ApiError(400, "Photos must be JPEG, PNG, or WebP images.");
   try {
     const image = sharp(data, { failOn: "warning", limitInputPixels: MAX_IMAGE_PIXELS });
     const metadata = await image.metadata();

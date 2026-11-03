@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: "list",
   timeout: 45000,
   use: {
-    baseURL: `http://127.0.0.1:${port}`,
+    baseURL: `http://localhost:${port}`,
     browserName: "chromium",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -23,7 +23,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run test:serve",
-    url: `http://127.0.0.1:${port}/api/items`,
+    url: `http://localhost:${port}/api/health`,
     reuseExistingServer: false,
     gracefulShutdown: { signal: "SIGTERM", timeout: 10000 },
     timeout: 120000,

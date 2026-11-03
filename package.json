@@ -15,20 +15,24 @@
     "test:unit": "tsx --test tests/*.test.ts",
     "test:e2e": "npm run build && playwright test",
     "test:serve": "tsx scripts/e2e-server.ts",
-    "test:docker": "node scripts/test-compose.mjs"
+    "test:docker": "node scripts/test-compose.mjs",
+    "auth:manage": "tsx scripts/manage-users.ts"
   },
   "dependencies": {
+    "@better-auth/passkey": "1.7.15",
     "@prisma/adapter-better-sqlite3": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@zxing/browser": "^0.2.1",
+    "better-auth": "1.7.15",
     "bwip-js": "^4.11.4",
     "dotenv": "^17.4.2",
     "nanoid": "^6.0.1",
-    "next": "16.3.4",
+    "next": "16.4.1",
     "prisma": "^7.10.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "sharp": "^0.35.4"
+    "sharp": "0.35.5",
+    "tsx": "^4.23.13"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -37,9 +41,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.1",
     "tailwindcss": "^4",
-    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

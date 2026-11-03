@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+.auth-panel { width: 100%; max-width: 30rem; }
+.account-list { list-style: none; padding: 0; margin: 1rem 0; }
+.account-list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: .75rem 0; overflow-wrap: anywhere; }
+
 :root {
   color-scheme: dark;
   --background: #111315;

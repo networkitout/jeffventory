@@ -1,10 +1,10 @@
 # Jeffventory — Copilot instructions
 
-Home inventory app for eBay sellers and tinkerers: photos, component details, stock history, UPC/QR scanning, seller drafts, and printable labels. Single-user, local SQLite and photo files. Dev/start scripts bind to loopback because the app has no login.
+Home inventory app for eBay sellers and tinkerers: photos, component details, stock history, UPC/QR scanning, seller drafts, and printable labels. Private shared inventory, local SQLite and photo files. Better Auth protects pages and APIs with password/passkey sign-in. Dev/start scripts still bind to loopback.
 
 ## Commands
 
-- Fresh checkout: `npm ci`, copy `.env.example` to `.env`, then `npm run db:setup`. Optional `npm run db:seed` adds examples without replacing existing records.
+- Fresh checkout: `npm ci`, copy `.env.example` to `.env`, set a random `BETTER_AUTH_SECRET` and fixed `BETTER_AUTH_URL`, then `npm run db:setup`. Create the owner with `npm run auth:manage -- create-owner`. Optional `npm run db:seed` adds examples without replacing existing records.
 - `npm run dev` — dev server (Turbopack, 127.0.0.1:3000)
 - `npm run build` — regenerate Prisma client, production build, and TypeScript check
 - `npm start` — serve the production build on loopback
@@ -52,8 +52,16 @@ Home inventory app for eBay sellers and tinkerers: photos, component details, st
 - Item mutations accept `categoryName`/`locationName` strings with `connectOrCreate`; filters use IDs. Forms offer names via `<datalist>`. Clearing a relationship on edit disconnects it.
 - Parse JSON input as unknown before validation. Quantities/thresholds are whole nonnegative numbers; prices must be finite and nonnegative. Optional empty numeric fields become null. Create with blank SKU generates one; duplicate SKU is 409 and missing records are 404.
 - Codes are trimmed at the boundaries and capped at 512 characters across storage, scanning, and image generation. Preserve their leading zeros and internal text.
-- Origin checks use the actual `Host` header: NextURL normalizes loopback addresses to `localhost`, so comparing browser Origin directly against `request.url` rejects legitimate requests to `127.0.0.1`.
-- LAN deployment is one shared inventory, not multi-user authorization. Anyone with network access can edit/delete/export it. Never publish ports on all interfaces by default or add public tunnels. Phone-camera HTTPS requires each client to trust the private CA; HTTPS alone does not provide a login.
+- Origin checks use `BETTER_AUTH_URL` when configured (including HTTPS termination); otherwise they use the actual `Host` header: NextURL normalizes loopback addresses to `localhost`, so comparing browser Origin directly against `request.url` rejects legitimate requests to `127.0.0.1`.
+- LAN deployment is one shared inventory: every enabled account can edit/delete/export it. Only the owner manages accounts. Never publish ports on all interfaces by default or add public tunnels. Use a stable DNS hostname and trusted HTTPS for phone cameras/passkeys. `BETTER_AUTH_URL` pins origin and relying-party hostname; client forwarded headers cannot choose either.
 - Forms are uncontrolled (`defaultValue` + `FormData`) and use `fetchJson` / `jsonRequest` from `src/lib/client-api.ts`. Navigate with `router.push` + `router.refresh()` after successful mutation. An item saved before a photo failure retains its ID/SKU so retrying cannot create a duplicate.
 - UI tokens and shared control/layout classes live in `src/app/globals.css`; `Icon.tsx` supplies consistent line icons. The established dark green/charcoal workbench becomes a stacked layout with photo rows on phones. Keep visible labels, keyboard focus, error/retry states, and white print styles when adding controls.
 - DB and photo paths resolve from the project root; both can be overridden for tests. `.env.example` is tracked; actual databases, uploads, `.env`, `.test-data`, test reports, and `.playwright-mcp/` snapshots/logs are ignored.
+
+## Authentication
+
+- See `docs/AUTHENTICATION.md`. No public signup or bootstrap claim. Owner creation/recovery is a local CLI operation; members are owner-provisioned.
+- Every inventory handler uses `withInventoryAuth`; every page calls `requirePageSession` before data access. A layout or cookie-presence check is not authorization. `/api/health` stays public.
+- Auth routes expose an allowlist of library endpoints, bound request bodies, enforce the configured origin, and require a fresh session for passkey management. Keep cookie caching disabled so session revocation is immediate.
+- New auth migrations are additive. Do not reset or migrate the real inventory database during tests; tests create temporary databases/accounts.
+- `tsx` is a runtime dependency for the container account-management CLI.

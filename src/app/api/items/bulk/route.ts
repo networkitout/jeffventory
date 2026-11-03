@@ -1,10 +1,11 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiErrorResponse, readJsonBody } from "@/lib/api-errors";
 import { parseBulkUpdate } from "@/lib/item-validation";
 import { inventoryTransaction } from "@/lib/inventory-transactions";
 import { statusActivity } from "@/lib/inventory-activity";
 
-export async function POST(req: NextRequest) {
+export const POST = withInventoryAuth(async function POST(req: NextRequest) {
   try {
     const { ids, status, locationName } = parseBulkUpdate(await readJsonBody(req));
     const count = await inventoryTransaction(async (tx) => {
@@ -46,4 +47,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return apiErrorResponse(error, "POST /api/items/bulk");
   }
-}
+});

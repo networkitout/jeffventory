@@ -2,7 +2,7 @@
 
 Jeffventory runs on one always-on computer, server, or NAS with Docker. Other trusted devices use its browser interface. No public hosting, public domain, cloud account, or separate database server is needed.
 
-**This is a shared household inventory, not an account-based service. Anyone who can reach it can view, edit, export, and delete everything.** Keep it on a trusted network, block guest/untrusted devices, and do not configure router port forwarding, public tunnels, or public proxies. HTTPS protects the connection but does not add a login.
+**This is a shared household inventory with owner-managed accounts.** Every enabled account can view, edit, export, and delete inventory; only the owner manages access. Keep it on a trusted network, block guest/untrusted devices, and do not configure router port forwarding, public tunnels, or public proxies. Passwords and passkeys require the setup below; see [authentication and recovery](AUTHENTICATION.md).
 
 ## What Jeff needs
 
@@ -20,11 +20,15 @@ The commands below use a Bash-compatible terminal: macOS Terminal, Linux, or WSL
 From the project folder:
 
 ```bash
-docker compose up -d --build
-docker compose ps
+cp docker/compose.env.example .env.docker
+# Generate a secret with openssl rand -hex 32 and put it in BETTER_AUTH_SECRET.
+# Keep BETTER_AUTH_URL=http://localhost:3000 for this local-only launch.
+docker compose --env-file .env.docker up -d --build
+docker compose --env-file .env.docker exec app npm run auth:manage -- create-owner
+docker compose --env-file .env.docker ps
 ```
 
-Open http://127.0.0.1:3000 on that computer. A fresh deployment is empty. The build excludes the developer's `.env`, database, photos, backups, and certificates.
+Open http://localhost:3000 on that computer and sign in. The account command prompts for a hidden password. A fresh deployment is empty. The build excludes the developer's `.env`, database, photos, backups, and certificates.
 
 Startup applies existing database migrations before accepting requests. It never runs a reset or seeds example inventory. The app runs as user 1000, restarts unless deliberately stopped, and reports healthy only when it can query its migrated database.
 
@@ -32,28 +36,19 @@ If port 3000 is already used by a development server, stop that server or choose
 
 ## Allow trusted LAN devices
 
-```bash
-cp docker/compose.env.example .env.docker
-```
-
-Edit `.env.docker`, replacing this example IP with the server's actual private address:
+Keep your existing `.env.docker` and secret. Configure local DNS so `inventory.home.arpa` resolves to the server's private IP. Edit the settings, replacing the example IP with the actual address:
 
 ```dotenv
 JEFFVENTORY_BIND_ADDRESS=192.168.1.50
 JEFFVENTORY_PORT=3000
-JEFFVENTORY_HOSTNAME=192.168.1.50
+JEFFVENTORY_HOSTNAME=inventory.home.arpa
 JEFFVENTORY_HTTPS_PORT=8443
+BETTER_AUTH_URL=https://inventory.home.arpa:8443
 ```
 
 Use the server's LAN IP rather than `0.0.0.0`, which publishes on every interface. Restrict Docker's published ports to trusted devices with the host/router's network controls. Only open the chosen port on the private network; do not open it on the router's internet-facing side.
 
-For ordinary HTTP access:
-
-```bash
-docker compose --env-file .env.docker up -d --build
-```
-
-Visit `http://192.168.1.50:3000` from a trusted device. Inventory editing, photo uploads, USB/manual entry, and decoding barcode images work over HTTP. Live camera scanning and clipboard access require a trusted secure context, so use private HTTPS for phones.
+LAN access requires trusted HTTPS. Plain HTTP is allowed only for localhost/loopback. Passkeys require a stable hostname; IP-address relying parties are unsupported. Continue with the HTTPS setup below.
 
 ## Phone-camera scanning with private HTTPS
 
@@ -65,7 +60,7 @@ With `.env.docker` configured as above:
 docker compose --env-file .env.docker -f compose.yaml -f compose.https.yaml up -d --build
 ```
 
-This removes the app's direct HTTP port and publishes only HTTPS on the selected interface. Open `https://192.168.1.50:8443`. The first visit will not be trusted until the device trusts the local CA.
+This removes the app's direct HTTP port and publishes only HTTPS on the selected interface. Open `https://inventory.home.arpa:8443`. The first visit will not be trusted until the device trusts the local CA.
 
 Export the **public** CA certificate:
 
@@ -85,7 +80,7 @@ Transfer that certificate to each trusted device using a trusted method, then in
 
 Trust only the certificate exported from your own server. **Never share Caddy's private keys or its certificate-volume backup.** The browser should show a valid HTTPS connection before granting camera access; clicking through a certificate warning is not a substitute for trust.
 
-`JEFFVENTORY_HOSTNAME` must match the address typed into the browser: the LAN IP, or a hostname that your router/local DNS resolves to that IP. Do not include a scheme or port in that setting. A hostname such as `jeffventory.home.arpa` is fine if you configure local DNS; Docker does not create that DNS record for you.
+`JEFFVENTORY_HOSTNAME` must match the hostname typed into the browser and the hostname in `BETTER_AUTH_URL`. Configure your router/local DNS to resolve it to the server IP. Do not include a scheme or port in that setting. A hostname such as `jeffventory.home.arpa` is fine if you configure local DNS; Docker does not create that DNS record for you.
 
 Caddy's CA is stored in a persistent volume, so ordinary restarts and image updates do not require trusting a new certificate.
 
@@ -124,8 +119,12 @@ The app stores `/data/inventory.db`, any SQLite sidecars, and `/data/uploads/` t
 Stop all writers before copying. The following creates both an inventory archive and a private CA archive without changing their contents:
 
 ```bash
-backup="backups/$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$backup"
+(
+set -e
+umask 077
+mkdir -p backups
+chmod 700 backups
+backup=$(mktemp -d "backups/$(date +%Y%m%d-%H%M%S)-XXXXXX")
 
 docker compose --env-file .env.docker -f compose.yaml -f compose.https.yaml stop
 docker compose --env-file .env.docker -f compose.yaml -f compose.https.yaml \
@@ -138,11 +137,12 @@ docker compose --env-file .env.docker -f compose.yaml -f compose.https.yaml star
 
 tar -tzf "$backup/inventory.tgz"
 tar -tzf "$backup/certificates.tgz"
+)
 ```
 
 For HTTP-only installs, omit the HTTPS Compose file and the certificate archive. If a command fails, resolve it before treating the backup as usable; restart the app after the attempted backup when safe.
 
-Keep an encrypted/off-machine copy of both archives, `.env.docker`, and the application release. The certificate archive contains private signing keys; treat it as sensitive. JSON/CSV exports are useful for spreadsheets but **do not include photos and are not a full backup**.
+The subshell creates private directories and files (0700/0600), including on hosts with a permissive default umask. The inventory database now also contains password hashes, sessions, and passkey records. Keep an encrypted/off-machine copy of both archives, `.env.docker` (including the authentication secret), and the application release. The certificate archive contains private signing keys; treat it as sensitive. JSON/CSV exports are useful for spreadsheets but **do not include photos and are not a full backup**.
 
 ## Restore without overwriting the current installation
 

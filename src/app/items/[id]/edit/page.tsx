@@ -1,3 +1,4 @@
+import { requirePageSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -7,6 +8,7 @@ import Icon from "@/components/Icon";
 export const metadata = { title: "Edit item · Jeffventory" };
 
 export default async function EditItemPage({ params }: PageProps<"/items/[id]/edit">) {
+  await requirePageSession();
   const { id } = await params;
   const [item, categories, locations] = await Promise.all([
     prisma.item.findUnique({ where: { id }, include: { category: true, location: true, _count: { select: { photos: true } } } }),

@@ -1,3 +1,4 @@
+import { requirePageSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import ItemForm, { type ItemFormValues } from "@/components/ItemForm";
@@ -7,6 +8,7 @@ import { notFound } from "next/navigation";
 export const metadata = { title: "Add item · Jeffventory" };
 
 export default async function NewItemPage({ searchParams }: PageProps<"/items/new">) {
+  await requirePageSession();
   const sp = await searchParams;
   const upc = typeof sp.upc === "string" ? sp.upc : "";
   const copyId = typeof sp.copy === "string" ? sp.copy : "";

@@ -10,6 +10,7 @@ const links: { href: string; label: string; icon: IconName }[] = [
   { href: "/scan", label: "Scan a code", icon: "scan" },
   { href: "/labels", label: "Print labels", icon: "print" },
   { href: "/data", label: "Your data", icon: "database" },
+  { href: "/account", label: "Account & access", icon: "settings" },
 ];
 
 export default function Navigation() {
@@ -38,7 +39,7 @@ export default function Navigation() {
         <span className="brand-mark"><Icon name="box" width="23" height="23" /></span>
         <span>Jeffventory<span className="brand-caption">A home for your hardware.</span></span>
       </Link>
-      <nav aria-label="Main navigation" className="nav-links">
+      {pathname !== "/login" && <nav aria-label="Main navigation" className="nav-links">
         {links.map((link) => {
           const active = link.href === "/" ? pathname === "/" || pathname.startsWith("/items") : pathname === link.href;
           return (
@@ -48,10 +49,10 @@ export default function Navigation() {
             </Link>
           );
         })}
-      </nav>
+      </nav>}
       <div className="nav-footer">
-        <span className="local-indicator" /> Local workspace
-        <p>Your inventory stays on this computer.</p>
+        <span className="local-indicator" /> Private shared workspace
+        <p>Your inventory stays on your server.</p>
       </div>
     </aside>
   );

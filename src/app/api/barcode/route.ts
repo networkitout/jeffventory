@@ -1,10 +1,11 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest } from "next/server";
 import bwipjs from "bwip-js/node";
 import { pickBarcodeType } from "@/lib/sku";
 
 const ALLOWED = new Set(["qrcode", "upca", "ean13", "ean8", "code128", "datamatrix"]);
 
-export async function GET(req: NextRequest) {
+export const GET = withInventoryAuth(async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const text = sp.get("text")?.trim();
   if (!text) return new Response("text is required", { status: 400 });
@@ -40,4 +41,4 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     return new Response(`barcode error: ${e instanceof Error ? e.message : "invalid input"}`, { status: 400 });
   }
-}
+});

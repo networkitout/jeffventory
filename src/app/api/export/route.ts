@@ -1,3 +1,4 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { ApiError, apiErrorResponse } from "@/lib/api-errors";
@@ -5,7 +6,7 @@ import { buildItemOrderBy, buildItemWhere, itemRelations } from "@/lib/inventory
 import { parseIds } from "@/lib/item-validation";
 import { inventoryCsv, inventoryMetadata } from "@/lib/inventory-export";
 
-export async function GET(req: NextRequest) {
+export const GET = withInventoryAuth(async function GET(req: NextRequest) {
   try {
     const search = req.nextUrl.searchParams;
     const format = search.get("format") ?? "csv";
@@ -42,4 +43,4 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return apiErrorResponse(error, "GET /api/export");
   }
-}
+});

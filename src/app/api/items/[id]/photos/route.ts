@@ -1,3 +1,4 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ApiError, apiErrorResponse, assertMutationRequest } from "@/lib/api-errors";
@@ -14,7 +15,7 @@ import {
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export const GET = withInventoryAuth(async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const item = await prisma.item.findUnique({
@@ -26,9 +27,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "GET /api/items/[id]/photos");
   }
-}
+});
 
-export async function POST(req: NextRequest, { params }: Params) {
+export const POST = withInventoryAuth(async function POST(req: NextRequest, { params }: Params) {
   try {
     assertMutationRequest(req, "multipart/form-data");
     const { id } = await params;
@@ -90,4 +91,4 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "POST /api/items/[id]/photos");
   }
-}
+});

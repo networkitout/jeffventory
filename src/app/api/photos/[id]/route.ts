@@ -1,3 +1,4 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
@@ -13,7 +14,7 @@ import { inventoryTransaction } from "@/lib/inventory-transactions";
 export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export const GET = withInventoryAuth(async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const photo = await prisma.itemPhoto.findUnique({ where: { id } });
@@ -39,9 +40,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "GET /api/photos/[id]");
   }
-}
+});
 
-export async function DELETE(req: NextRequest, { params }: Params) {
+export const DELETE = withInventoryAuth(async function DELETE(req: NextRequest, { params }: Params) {
   try {
     assertMutationRequest(req);
     const { id } = await params;
@@ -58,4 +59,4 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "DELETE /api/photos/[id]");
   }
-}
+});

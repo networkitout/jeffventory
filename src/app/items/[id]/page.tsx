@@ -1,3 +1,4 @@
+import { requirePageSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
@@ -11,6 +12,7 @@ import SellingHelper from "@/components/SellingHelper";
 import Icon from "@/components/Icon";
 
 export default async function ItemPage({ params }: PageProps<"/items/[id]">) {
+  await requirePageSession();
   const { id } = await params;
   const item = await prisma.item.findUnique({
     where: { id },

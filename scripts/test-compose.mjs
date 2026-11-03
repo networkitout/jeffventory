@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, randomBytes } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { request as httpsRequest } from "node:https";
 import { join, resolve } from "node:path";
@@ -16,6 +16,8 @@ const image = noBuild ? (process.env.JEFFVENTORY_TEST_IMAGE || "jeffventory:loca
 const env = {
   ...process.env,
   JEFFVENTORY_IMAGE: image,
+  BETTER_AUTH_SECRET: randomBytes(32).toString("hex"),
+  BETTER_AUTH_URL: "http://localhost:3000",
   JEFFVENTORY_BIND_ADDRESS: "127.0.0.1",
   JEFFVENTORY_PORT: "0",
   JEFFVENTORY_HOSTNAME: "localhost",
@@ -46,15 +48,25 @@ function publishedPort(name, service, target, https = false) {
   return Number(address.split(":").at(-1));
 }
 
+let cookie = "";
+let secureCookie = "";
+const loginValues = { email: "docker@example.test", password: "Docker-test-password-2026" };
+
+async function login(base) {
+  const response = await fetch(`${base}/api/auth/sign-in/email`, { method: "POST", headers: { Origin: base, "Content-Type": "application/json" }, body: JSON.stringify(loginValues) });
+  assert.equal(response.status, 200, await response.text());
+  cookie = response.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+}
+
 async function json(base, path, options = {}, expectedStatus = 200) {
-  const response = await fetch(`${base}${path}`, { ...options, signal: AbortSignal.timeout(10000) });
+  const response = await fetch(`${base}${path}`, { ...options, headers: { Cookie: cookie, ...options.headers }, signal: AbortSignal.timeout(10000) });
   const body = await response.text();
   assert.equal(response.status, expectedStatus, body);
   return JSON.parse(body);
 }
 
 async function photoDigest(base, id) {
-  const response = await fetch(`${base}/api/photos/${id}`, { signal: AbortSignal.timeout(10000) });
+  const response = await fetch(`${base}/api/photos/${id}`, { headers: { Cookie: cookie }, signal: AbortSignal.timeout(10000) });
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "image/webp");
   return createHash("sha256").update(new Uint8Array(await response.arrayBuffer())).digest("hex");
@@ -66,6 +78,7 @@ function trustedRequest(port, ca, path, { method = "GET", body } = {}) {
       hostname: "127.0.0.1", servername: "localhost", port, path, ca, method, timeout: 10000,
       headers: {
         Host: `localhost:${port}`,
+        Cookie: secureCookie,
         ...(body ? {
           Origin: `https://localhost:${port}`, "Content-Type": "application/json",
           "Content-Length": Buffer.byteLength(body),
@@ -77,7 +90,7 @@ function trustedRequest(port, ca, path, { method = "GET", body } = {}) {
       response.on("error", reject);
       response.on("end", () => {
         try {
-          resolve({ status: response.statusCode, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
+          resolve({ headers: response.headers, status: response.statusCode, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
         } catch (error) {
           reject(error);
         }
@@ -114,7 +127,15 @@ async function main() {
     const config = JSON.parse(compose(project, ["config", "--format", "json"]));
     assert.equal(config.services.app.ports[0].host_ip, "127.0.0.1");
     compose(project, ["up", "-d", "--no-build", "--wait", "--wait-timeout", "180"]);
-    let base = `http://127.0.0.1:${publishedPort(project, "app", 3000)}`;
+    const httpPort = publishedPort(project, "app", 3000);
+    let base = `http://localhost:${httpPort}`;
+    env.JEFFVENTORY_PORT = String(httpPort);
+    env.BETTER_AUTH_URL = base;
+    compose(project, ["up", "-d", "--no-build", "--force-recreate", "--wait", "--wait-timeout", "180", "app"]);
+    compose(project, ["exec", "-T", "app", "node", "--import", "tsx", "scripts/manage-users.ts", "create-owner", loginValues.email, "Docker owner", "--password-stdin"], { input: loginValues.password + "\n" });
+    const anonymous = await fetch(`${base}/api/items`);
+    assert.equal(anonymous.status, 401);
+    await login(base);
     assert.deepEqual(await json(base, "/api/health"), { status: "ok" });
     assert.deepEqual(await json(base, "/api/items"), []);
     assert.equal(compose(project, ["exec", "-T", "app", "id", "-u"]).trim(), "1000");
@@ -125,7 +146,7 @@ async function main() {
       method: "POST", headers: { Origin: base, "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Docker persistence fixture", upc: "012345678905", quantity: 4 }),
     }, 201);
-    const png = await fetch(`${base}/api/barcode?text=${item.sku}&type=qrcode`);
+    const png = await fetch(`${base}/api/barcode?text=${item.sku}&type=qrcode`, { headers: { Cookie: cookie } });
     assert.equal(png.status, 200);
     const upload = new FormData();
     upload.append("files", new Blob([await png.arrayBuffer()], { type: "image/png" }), "fixture.png");
@@ -136,6 +157,7 @@ async function main() {
 
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
+    await page.context().addCookies(cookie.split("; ").map(value => { const separator = value.indexOf("="); return { name: value.slice(0, separator), value: value.slice(separator + 1), url: base }; }));
     await page.goto(`${base}/items/new`);
     await page.getByLabel("Item name", { exact: false }).fill("Created through container UI");
     await page.getByRole("button", { name: "Create item", exact: true }).click();
@@ -147,18 +169,18 @@ async function main() {
     browser = undefined;
 
     compose(project, ["up", "-d", "--no-build", "--force-recreate", "--wait", "--wait-timeout", "180", "app"]);
-    base = `http://127.0.0.1:${publishedPort(project, "app", 3000)}`;
+    base = `http://localhost:${publishedPort(project, "app", 3000)}`;
     assert.equal((await json(base, `/api/items/${item.id}`)).quantity, 4);
     assert.equal(await photoDigest(base, photo.id), digest);
     console.log("Fresh migrations, non-root runtime, UI, photos, labels, and recreate persistence passed.");
 
     compose(project, ["stop", "app"]);
     const backup = compose(project, ["run", "--rm", "-T", "--no-deps", "--entrypoint", "tar", "app", "-C", "/data", "-czf", "-", "."], { binary: true });
-    await writeFile(join(temporary, "inventory.tgz"), backup);
+    await writeFile(join(temporary, "inventory.tgz"), backup, { mode: 0o600 });
     compose(restoredProject, ["run", "--rm", "-T", "--no-deps", "--entrypoint", "sh", "app",
       "-c", "test ! -e /data/inventory.db && tar -xzf - -C /data"], { input: backup });
     compose(restoredProject, ["up", "-d", "--no-build", "--wait", "--wait-timeout", "180"]);
-    const restoredBase = `http://127.0.0.1:${publishedPort(restoredProject, "app", 3000)}`;
+    const restoredBase = `http://localhost:${publishedPort(restoredProject, "app", 3000)}`;
     assert.equal((await json(restoredBase, `/api/items/${item.id}`)).upc, "012345678905");
     assert.equal(await photoDigest(restoredBase, photo.id), digest);
     console.log("Stopped-volume backup and restoration into a separate deployment passed.");
@@ -168,12 +190,19 @@ async function main() {
     assert.equal(secureConfig.services.https.ports[0].host_ip, "127.0.0.1");
     compose(project, ["up", "-d", "--no-build", "--wait", "--wait-timeout", "180"], { https: true });
     const port = publishedPort(project, "https", 443, true);
+    env.JEFFVENTORY_HTTPS_PORT = String(port);
+    env.BETTER_AUTH_URL = `https://localhost:${port}`;
+    compose(project, ["up", "-d", "--no-build", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "180", "app"], { https: true });
     const rootPath = join(temporary, "root.crt");
     await eventually(async () => {
       compose(project, ["cp", "https:/data/caddy/pki/authorities/local/root.crt", rootPath], { https: true });
       const health = await trustedRequest(port, await readFile(rootPath), "/api/health");
       assert.equal(health.status, 200);
     });
+    const secureLogin = await trustedRequest(port, await readFile(rootPath), "/api/auth/sign-in/email", { method: "POST", body: JSON.stringify(loginValues) });
+    assert.equal(secureLogin.status, 200, JSON.stringify(secureLogin.body));
+    assert.ok(secureLogin.headers["set-cookie"].some(value => /Secure/i.test(value)));
+    secureCookie = secureLogin.headers["set-cookie"].map(value => value.split(";")[0]).join("; ");
     const secureWrite = await trustedRequest(port, await readFile(rootPath), `/api/items/${item.id}/quantity`, {
       method: "POST", body: JSON.stringify({ delta: 1 }),
     });
@@ -193,6 +222,9 @@ async function main() {
     { https: true, input: certificates });
     compose(restoredProject, ["up", "-d", "--no-build", "--wait", "--wait-timeout", "180"], { https: true });
     const restoredSecurePort = publishedPort(restoredProject, "https", 443, true);
+    const restoredLogin = await trustedRequest(restoredSecurePort, originalCA, "/api/auth/sign-in/email", { method: "POST", body: JSON.stringify(loginValues) });
+    assert.equal(restoredLogin.status, 200);
+    secureCookie = restoredLogin.headers["set-cookie"].map(value => value.split(";")[0]).join("; ");
     await eventually(async () => {
       const restored = await trustedRequest(restoredSecurePort, originalCA, `/api/items/${item.id}`);
       assert.equal(restored.status, 200);

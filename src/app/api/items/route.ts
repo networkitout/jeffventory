@@ -1,3 +1,4 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateSku } from "@/lib/sku";
@@ -6,7 +7,7 @@ import { parseItemCreate } from "@/lib/item-validation";
 import { buildItemOrderBy, buildItemWhere, itemRelations } from "@/lib/inventory-query";
 import { inventoryTransaction } from "@/lib/inventory-transactions";
 
-export async function GET(req: NextRequest) {
+export const GET = withInventoryAuth(async function GET(req: NextRequest) {
   try {
     const search = req.nextUrl.searchParams;
     const items = await prisma.item.findMany({
@@ -18,9 +19,9 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return apiErrorResponse(error, "GET /api/items");
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withInventoryAuth(async function POST(req: NextRequest) {
   try {
     const { categoryName, locationName, sku, ...fields } = parseItemCreate(await readJsonBody(req));
     const item = await inventoryTransaction((tx) =>
@@ -45,4 +46,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return apiErrorResponse(error, "POST /api/items", "SKU already exists.");
   }
-}
+});

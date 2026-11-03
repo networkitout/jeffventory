@@ -1,8 +1,10 @@
+import { requirePageSession } from "@/lib/auth-session";
 import Icon from "@/components/Icon";
 
 export const metadata = { title: "Your data · Jeffventory" };
 
-export default function DataPage() {
+export default async function DataPage() {
+  await requirePageSession();
   return (
     <div>
       <header className="page-header"><div><h1>Your inventory. Your data.</h1><p>Keep a copy, take it elsewhere, or keep everything on your own machine.</p></div></header>
@@ -29,7 +31,7 @@ export default function DataPage() {
       <section className="data-section">
         <h2>Using a phone or another computer</h2>
         <p>The server binds to this computer&apos;s loopback address by default. For trusted home-network devices, the Docker setup supports private HTTPS with a locally trusted certificate. Live camera scanning needs that secure connection.</p>
-        <p>This is one shared inventory with no login. Anyone who can reach it can view, edit, export, or delete its contents. Keep it off public and guest networks; HTTPS protects the connection but does not add user accounts.</p>
+        <p>Sign-in is required. Every enabled account shares the same inventory and can view, edit, export, or delete it. The owner manages accounts in Account &amp; access. Keep it on your private network; use a stable hostname and trusted HTTPS for phones and passkeys.</p>
       </section>
     </div>
   );

@@ -1,3 +1,4 @@
+import { requirePageSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { buildItemWhere, buildItemOrderBy } from "@/lib/inventory-query";
@@ -8,6 +9,7 @@ import InventoryWorkbench from "@/components/InventoryWorkbench";
 const PAGE_SIZE = 48;
 
 export default async function Home({ searchParams }: PageProps<"/">) {
+  await requirePageSession();
   const raw = await searchParams;
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(raw)) {

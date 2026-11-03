@@ -1,3 +1,4 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
@@ -10,7 +11,7 @@ import { removePhotoFiles } from "@/lib/photos";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export const GET = withInventoryAuth(async function GET(_req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const item = await prisma.item.findUnique({
@@ -25,9 +26,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "GET /api/items/[id]");
   }
-}
+});
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+export const PATCH = withInventoryAuth(async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const patch = parseItemPatch(await readJsonBody(req));
@@ -62,9 +63,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "PATCH /api/items/[id]", "SKU already exists.");
   }
-}
+});
 
-export async function DELETE(req: NextRequest, { params }: Params) {
+export const DELETE = withInventoryAuth(async function DELETE(req: NextRequest, { params }: Params) {
   try {
     assertMutationRequest(req);
     const { id } = await params;
@@ -81,4 +82,4 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "DELETE /api/items/[id]");
   }
-}
+});

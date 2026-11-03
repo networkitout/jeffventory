@@ -1,3 +1,4 @@
+import { requirePageSession } from "@/lib/auth-session";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { formatMoney } from "@/lib/constants";
@@ -13,6 +14,7 @@ const templates = {
 };
 
 export default async function LabelsPage({ searchParams }: PageProps<"/labels">) {
+  await requirePageSession();
   const sp = await searchParams;
   const idsParam = typeof sp.ids === "string" ? sp.ids : "";
   const ids = [...new Set(idsParam.split(",").map((id) => id.trim()).filter(Boolean))].slice(0, 200);

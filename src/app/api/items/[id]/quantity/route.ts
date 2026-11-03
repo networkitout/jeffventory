@@ -1,3 +1,4 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiErrorResponse, readJsonBody } from "@/lib/api-errors";
 import { MAX_QUANTITY, parseQuantityChange } from "@/lib/item-validation";
@@ -7,7 +8,7 @@ import { quantityActivity } from "@/lib/inventory-activity";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function POST(req: NextRequest, { params }: Params) {
+export const POST = withInventoryAuth(async function POST(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const { delta, note } = parseQuantityChange(await readJsonBody(req));
@@ -42,4 +43,4 @@ export async function POST(req: NextRequest, { params }: Params) {
   } catch (error) {
     return apiErrorResponse(error, "POST /api/items/[id]/quantity");
   }
-}
+});

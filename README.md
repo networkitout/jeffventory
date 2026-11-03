@@ -9,12 +9,15 @@ Use a current Node.js LTS release (Node 24 recommended) and npm. The SQLite adap
 ```bash
 npm ci
 cp .env.example .env    # first setup only; keep your existing .env
+# Set BETTER_AUTH_SECRET in .env using: openssl rand -hex 32
+# Keep BETTER_AUTH_URL=http://localhost:3000 for local use.
 npm run db:setup
+npm run auth:manage -- create-owner
 npm run db:seed         # optional: two example items and starter categories/locations
 npm run dev
 ```
 
-Open http://127.0.0.1:3000. The server binds to loopback by default. This is a single-user application with no login; do not expose it to the public internet.
+Open http://localhost:3000 and sign in. The server binds to loopback by default. Add a passkey in **Account & access**. See [account setup and recovery](docs/AUTHENTICATION.md).
 
 `db:setup` generates the Prisma client and applies committed migrations without clearing existing inventory. For a production-mode local server, run `npm run build` followed by `npm start`.
 
@@ -23,14 +26,17 @@ Open http://127.0.0.1:3000. The server binds to loopback by default. This is a s
 Docker Compose runs the production app without installing Node.js or a database on the host:
 
 ```bash
-docker compose up -d --build
+cp docker/compose.env.example .env.docker
+# Set BETTER_AUTH_SECRET in .env.docker using: openssl rand -hex 32
+docker compose --env-file .env.docker up -d --build
+docker compose --env-file .env.docker exec app npm run auth:manage -- create-owner
 ```
 
-The default is http://127.0.0.1:3000, accessible only on that computer. SQLite and photos live together in a persistent Docker volume; migrations run automatically, and the container runs as a non-root user. Fresh installations start empty, not with someone else's inventory.
+The default is http://localhost:3000, accessible only on that computer. SQLite and photos live together in a persistent Docker volume; migrations run automatically, and the container runs as a non-root user. Fresh installations start empty, not with someone else's inventory.
 
 For Jeff's trusted home network, copy `docker/compose.env.example` to `.env.docker` and set the server's private LAN IP. The optional `compose.https.yaml` adds private HTTPS for phone-camera scanning without a public domain or cloud account. **Follow [Jeff's LAN setup guide](docs/DEPLOYMENT.md)** for the full commands, certificate trust, updates, and backup/restore.
 
-This remains one shared inventory with no login: anyone who can reach the app can view, edit, export, or delete its contents. Keep it off public and guest networks. HTTPS encrypts traffic; it does not add user authentication.
+This is one shared inventory with owner-managed accounts. Enabled members can view, edit, export, and delete its contents. Passwords and passkeys are supported. Use a stable DNS hostname and trusted HTTPS for LAN access; keep it off public and guest networks.
 
 ## Inventory workflows
 
@@ -49,7 +55,7 @@ Inventory SKUs are unique and resolve first. Product codes are not unique; items
 
 **Look up product** in the item form is optional. Clicking it sends only the entered retail barcode to UPCitemdb's public trial API. Suggestions are previewed and **Fill empty fields** preserves anything you have already entered. Nothing is stored until the item is saved. The catalog may be incomplete or incorrect, and the trial service has rate limits; no match and service failures are shown separately. No API key is needed for the trial endpoint.
 
-Phone cameras require trusted HTTPS, not an HTTP LAN address. The [private HTTPS deployment](docs/DEPLOYMENT.md#phone-camera-scanning-with-private-https) supports trusted devices on a home network; restrict network access because there is no app login. Manual entry and USB scanning remain available without camera access.
+Phone cameras require trusted HTTPS, not an HTTP LAN address. The [private HTTPS deployment](docs/DEPLOYMENT.md#phone-camera-scanning-with-private-https) supports trusted devices on a home network; use a stable hostname for passkeys and keep network access private. Manual entry and USB scanning remain available without camera access.
 
 ## Selling and labels
 
@@ -67,7 +73,7 @@ Defaults, relative to the project root:
 
 | Data | Location | Configuration |
 | --- | --- | --- |
-| SQLite inventory, photo metadata, activity | `prisma/dev.db` | `DATABASE_URL` |
+| SQLite inventory, photos metadata, activity, accounts and sessions | `prisma/dev.db` | `DATABASE_URL` |
 | Processed photo files | `data/uploads/` | `UPLOAD_DIR` |
 
 Database files, photos, local environment files, and browser-test artifacts are gitignored.
@@ -87,11 +93,13 @@ For a complete backup, stop the app and copy the database and the upload directo
 | `npm run db:setup` | Generate client and apply existing migrations |
 | `npm run db:migrate -- --name change_name` | Create/apply a development migration |
 | `npm run db:seed` | Idempotent optional sample data |
+| `npm run auth:manage -- create-owner` | Create the first owner with a hidden password prompt |
+| `npm run auth:manage -- recover EMAIL` | Reset an account, revoke its sessions and remove its passkeys |
 | `npm run db:studio` | Inspect the database with Prisma Studio |
 | `npm run test:unit` | Node test runner through tsx |
 | `npm run test:e2e` | Build and run Playwright desktop/mobile workflows |
 | `npm test` | Unit and browser suites |
-| `docker compose up -d --build` | Build/start a persistent local production deployment |
+| `docker compose --env-file .env.docker up -d --build` | Build/start a persistent local production deployment |
 | `npm run test:docker` | Build and exercise isolated HTTP/HTTPS containers, persistence, and backup/restore |
 
 Install the test browser once:

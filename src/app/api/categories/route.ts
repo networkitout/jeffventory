@@ -1,18 +1,19 @@
+import { withInventoryAuth } from "@/lib/auth-route";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { apiErrorResponse, readJsonBody } from "@/lib/api-errors";
 import { parseNamedEntity } from "@/lib/item-validation";
 import { inventoryTransaction } from "@/lib/inventory-transactions";
 
-export async function GET() {
+export const GET = withInventoryAuth(async function GET() {
   try {
     return NextResponse.json(await prisma.category.findMany({ orderBy: { name: "asc" } }));
   } catch (error) {
     return apiErrorResponse(error, "GET /api/categories");
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withInventoryAuth(async function POST(req: NextRequest) {
   try {
     const name = parseNamedEntity(await readJsonBody(req));
     const category = await inventoryTransaction((tx) =>
@@ -22,4 +23,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return apiErrorResponse(error, "POST /api/categories");
   }
-}
+});

@@ -1,4 +1,5 @@
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import sharp from "sharp";
 
 type Item = { id: string; sku: string; name: string; quantity: number; upc: string | null; status: string; photos: { id: string; width: number; height: number }[] };
@@ -187,6 +188,7 @@ test("generated QR and nonstandard numeric labels decode back to the exact inven
     const png = await request.get(`/api/barcode?text=${encodeURIComponent(code)}&type=${type}&scale=4`);
     expect(png.ok()).toBe(true);
     await page.goto("/scan");
+    await expect(page.getByRole("button", { name: "Scan a photo", exact: true })).toBeEnabled();
     await page.getByLabel("Choose a barcode photo").setInputFiles({ name: "code.png", mimeType: "image/png", buffer: await png.body() });
     await expect(page).toHaveURL(new RegExp(`/items/${item.id}$`));
   }
