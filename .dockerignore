@@ -28,3 +28,14 @@ src/generated
 **/*.key
 **/*.log
 .DS_Store
+
+# Local design notes and coding-agent configuration
+AGENTS.md
+CLAUDE.md
+ARCHITECTURE.md
+DESIGN.md
+PHASES.md
+copilot-instructions.md
+.agents
+.codex
+.claude

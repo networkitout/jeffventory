@@ -56,3 +56,18 @@ prisma/*.db-wal
 /.playwright-mcp/
 /backups/
 /certs/
+
+# Local design notes and coding-agent configuration
+/AGENTS.md
+/CLAUDE.md
+/ARCHITECTURE.md
+/DESIGN.md
+/PHASES.md
+/copilot-instructions.md
+/.github/copilot-instructions.md
+/.github/github-app.yml
+/.mcp.json
+/.vscode/
+/.agents/
+/.codex/
+/.claude/

@@ -128,27 +128,4 @@ Docker smoke tests require a running Docker engine, Compose 2.24+ and the Playwr
 
 Next.js 16 App Router server components read Prisma directly. Client forms and controls call validated JSON or multipart route handlers. Prisma 7 uses the better-sqlite3 driver adapter and a generated TypeScript client. Photos are local files with database-backed identifiers, not user-supplied paths. ZXing decodes codes in the browser; bwip-js renders printable code PNGs on the server. Tailwind CSS 4 and shared CSS/component conventions provide the responsive dark workbench and separate white print layout.
 
-See `.github/copilot-instructions.md` for implementation contracts and `AGENTS.md` for the bundled Next.js documentation requirement.
-
-## Playwright MCP and Copilot
-
-The workspace includes Microsoft Playwright MCP, pinned to `0.0.80`:
-
-| Client | Configuration |
-| --- | --- |
-| Copilot CLI | `.mcp.json` |
-| VS Code Copilot | `.vscode/mcp.json` |
-| Copilot app run/setup buttons | `.github/github-app.yml` |
-
-Copilot CLI discovers the project config in trusted Git repositories. If your client does not discover it automatically, launch from this folder with:
-
-```bash
-copilot --additional-mcp-config @.mcp.json
-```
-
-Approve workspace/server trust when your client prompts. In VS Code, open `.vscode/mcp.json` and start the `playwright` server. MCP uses installed Chrome; the regression suite uses the separately installed Playwright Chromium browser.
-
-The MCP browser is headless with an isolated, in-memory profile and service workers blocked. Its origin filter allows only `localhost` and `127.0.0.1` on ports 3000 and 3100. Adjust both config files if you deliberately use different ports. The filter is a browsing convenience, **not a security boundary**; it does not constrain redirects. No user-global MCP settings are changed.
-
-The Copilot app configuration provides manual setup/run/test actions and opens the local preview when the server is ready. Review and accept that configuration in the app before using the actions.
-# jeffventory
+See [account setup](docs/AUTHENTICATION.md) and [deployment instructions](docs/DEPLOYMENT.md) for installation, access management, and backups.
